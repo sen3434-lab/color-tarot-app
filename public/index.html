@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>컬러 타로 힐링 · 리딩</title>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  .hero { position: relative; text-align: center; padding: 18px 0 6px; }
+  .hero-aura {
+    position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+    width: 320px; height: 220px; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 35%, rgba(200,32,42,.20), transparent 55%),
+      radial-gradient(circle at 75% 30%, rgba(230,168,0,.20), transparent 55%),
+      radial-gradient(circle at 50% 70%, rgba(143,63,190,.18), transparent 55%),
+      radial-gradient(circle at 80% 75%, rgba(33,89,168,.16), transparent 55%),
+      radial-gradient(circle at 25% 75%, rgba(46,139,87,.16), transparent 55%);
+    filter: blur(26px);
+  }
+  .hero-eyebrow { position: relative; font-size: 10.5px; letter-spacing: 5px; color: var(--primary); font-weight: 600; text-transform: uppercase; }
+  .hero h1 { position: relative; font-size: 22px; line-height: 1.5; margin-top: 10px; }
+  .hero p { position: relative; color: var(--muted-foreground); font-size: 13px; margin-top: 10px; line-height: 1.6; }
+  .hero-dots { position: relative; display: flex; justify-content: center; gap: 6px; margin-top: 16px; }
+  .hero-dots .d { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 2px 6px rgba(40,30,20,.15); }
+  #moodForm textarea { min-height: 74px; resize: vertical; }
+  .draw-btn-wrap { display: flex; justify-content: center; margin-top: 22px; }
+  .chip-intro { text-align: center; font-size: 12px; color: var(--muted-foreground); margin: 22px 0 4px; }
+
+  .limit-box { text-align: center; padding: 40px 20px; }
+  .limit-box .ic { font-size: 34px; margin-bottom: 12px; }
+
+  #resultView { display: none; }
+  .card-frame {
+    width: 220px; margin: 0 auto;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(40,30,20,.12);
+    border: 0.8px solid var(--border);
+    background: var(--card);
+  }
+  .card-frame img { width: 100%; display: block; aspect-ratio: 3/4.4; object-fit: cover; background: var(--muted); }
+  .card-name { text-align: center; margin-top: 14px; font-size: 19px; }
+  .card-keyword { text-align: center; color: var(--primary-dark); font-size: 13px; margin-top: 4px; font-weight: 500; }
+
+  .quote-box { background: var(--secondary); border-radius: 14px; padding: 16px 18px; margin: 22px 0; text-align: center; font-size: 13.5px; color: var(--foreground); }
+  .quote-box .q-label { font-size: 10.5px; letter-spacing: 2px; color: var(--muted-foreground); text-transform: uppercase; margin-bottom: 6px; }
+
+  .reading-box p { font-size: 14.5px; line-height: 1.9; color: var(--foreground); white-space: pre-line; }
+
+  .rx-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+  .rx-card { border: 0.8px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .rx-card .rx-head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .rx-card .rx-head .ic { font-size: 17px; }
+  .rx-card .rx-name { font-weight: 600; margin-bottom: 4px; font-size: 13.5px; }
+  .rx-card p.rx-reason { font-size: 13.5px; color: var(--foreground); line-height: 1.75; }
+
+  .closing-box { text-align: center; margin: 26px 0 6px; padding: 0 8px; font-size: 13px; color: var(--primary-dark); font-style: italic; line-height: 1.7; }
+
+  .ai-loading { text-align: center; padding: 20px 0; }
+  .ai-loading p { font-size: 12.5px; color: var(--muted-foreground); margin-top: 10px; }
+
+  .result-actions { display: flex; gap: 10px; margin-top: 26px; }
+  .result-actions .btn { flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Color Tarot <span>✦</span> Healing</div>
+  <div class="topbar-actions">
+    <span class="badge badge-free" id="roleBadge">불러오는 중</span>
+    <a href="/settings.html" class="icon-btn">계정</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="moodView">
+    <div class="hero">
+      <div class="hero-aura"></div>
+      <div class="hero-eyebrow">Color Healing</div>
+      <h1>오늘, 어떤 마음이신가요?</h1>
+      <p>color 한 장이 당신의 마음을 가만히 안아드릴게요.<br/>편하게 이야기해주세요.</p>
+      <div class="hero-dots">
+        <div class="d" style="background:#c8202a;"></div>
+        <div class="d" style="background:#e6a800;"></div>
+        <div class="d" style="background:#2e8b57;"></div>
+        <div class="d" style="background:#2159a8;"></div>
+        <div class="d" style="background:#8f3fbe;"></div>
+      </div>
+    </div>
+
+    <div class="chip-intro">지금 마음에 가까운 것이 있다면 골라보세요</div>
+    <form id="moodForm">
+      <div class="chip-grid" id="chipGrid"></div>
+      <div class="field">
+        <textarea id="moodText" placeholder="지금 느끼는 감정을 편하게 적어보세요..."></textarea>
+      </div>
+      <div class="draw-btn-wrap">
+        <button type="submit" class="btn btn-primary" id="drawBtn">🎴 마음을 색으로 만나보기</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="limit-box" id="limitBoxAnon" style="display:none;">
+    <div class="ic">🌙</div>
+    <p><strong>비회원은 하루 1회만 무료로 이용하실 수 있어요.</strong></p>
+    <p class="muted small mt-8">회원가입하시면 계속 컬러 카드를 만나보실 수 있어요.<br/>가입은 1분이면 충분해요.</p>
+    <div class="result-actions" style="max-width:320px;margin:20px auto 0;">
+      <a href="/auth.html" class="btn btn-primary">무료로 회원가입하기</a>
+    </div>
+  </div>
+
+  <div class="limit-box" id="limitBoxMember" style="display:none;">
+    <div class="ic">🌙</div>
+    <p><strong>오늘의 무료 리딩을 모두 사용하셨어요.</strong></p>
+    <p class="muted small mt-8">구독하시면 매일 무제한으로 이용하실 수 있고,<br/><strong>컬러타로 정규 수업을 들으시면 평생 무료로 무제한</strong> 이용하실 수 있어요.</p>
+    <div class="result-actions" style="max-width:320px;margin:20px auto 0;">
+      <a href="/edu.html#curriculum" class="btn btn-outline">정규 수업 안내</a>
+      <a href="/edu.html" class="btn btn-primary">구독하기</a>
+    </div>
+  </div>
+
+  <div id="loadingView" style="display:none;">
+    <div class="center" style="padding:70px 0;">
+      <div class="spinner"></div>
+      <p class="muted small mt-16">색이 카드를 들여다보고 있어요...</p>
+    </div>
+  </div>
+
+  <div id="resultView">
+    <a href="#" id="backBtn" class="small muted">← 다시 고르기</a>
+
+    <div class="card-frame mt-24" id="cardFrame">
+      <img id="cardImg" alt=""/>
+    </div>
+    <div class="card-name" id="cardName"></div>
+
+    <div class="quote-box">
+      <div class="q-label">당신의 마음</div>
+      <div id="userMood"></div>
+    </div>
+
+    <div id="aiLoading" class="ai-loading">
+      <div class="spinner"></div>
+      <p>당신의 마음과 카드의 색을 함께 들여다보고 있어요...</p>
+    </div>
+
+    <div id="aiContent" style="display:none;">
+      <div class="section-label">오늘의 리딩</div>
+      <div class="card reading-box">
+        <p id="readingText"></p>
+      </div>
+
+      <div class="rx-grid">
+        <div class="rx-card">
+          <div class="rx-head"><span class="ic">🌿</span> <span>센트 처방</span></div>
+          <p class="rx-name" id="aromaName"></p>
+          <p class="rx-reason" id="aromaReason"></p>
+        </div>
+        <div class="rx-card">
+          <div class="rx-head"><span class="ic">🍵</span> <span>티 처방</span></div>
+          <p class="rx-name" id="teaName"></p>
+          <p class="rx-reason" id="teaReason"></p>
+        </div>
+        <div class="rx-card">
+          <div class="rx-head"><span class="ic">💎</span> <span>원석 처방</span></div>
+          <p class="rx-name" id="gemName"></p>
+          <p class="rx-reason" id="gemReason"></p>
+        </div>
+      </div>
+
+      <div class="closing-box" id="closingText"></div>
+    </div>
+
+    <details class="accordion" id="studentBox" style="display:none;">
+      <summary>🎓 수강생을 위한 실무 상담 팁</summary>
+      <div class="accordion-body">
+        <p><b id="studentQuestion"></b></p>
+        <p class="mt-8" id="studentPhrase"></p>
+      </div>
+    </details>
+
+    <div class="result-actions">
+      <button class="btn btn-outline" id="saveBtn">기록에 저장</button>
+      <button class="btn btn-primary" id="redrawBtn">새 카드 뽑기</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { getSb, getSession, getMember, showToast, renderBottomNav, APP_KEY } from '/js/app.js';
+import { pickRandomMoods } from '/js/moodPrompts.js';
+
+renderBottomNav('/index.html');
+
+const moodView = document.getElementById('moodView');
+const loadingView = document.getElementById('loadingView');
+const resultView = document.getElementById('resultView');
+const limitBoxAnon = document.getElementById('limitBoxAnon');
+const limitBoxMember = document.getElementById('limitBoxMember');
+const moodForm = document.getElementById('moodForm');
+const chipGrid = document.getElementById('chipGrid');
+const roleBadge = document.getElementById('roleBadge');
+
+let selectedMood = null;
+let session = null;
+let member = null;
+let cardsCache = null;
+
+function renderChips() {
+  chipGrid.innerHTML = '';
+  const moods = pickRandomMoods(8);
+  moods.forEach(m => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.innerHTML = `<span>${m.ic}</span><span>${m.text}</span>`;
+    chip.addEventListener('click', () => {
+      const wasSelected = chip.classList.contains('selected');
+      chipGrid.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+      if (!wasSelected) {
+        chip.classList.add('selected');
+        selectedMood = m.text;
+        document.getElementById('moodText').value = m.text;
+      } else {
+        selectedMood = null;
+        document.getElementById('moodText').value = '';
+      }
+    });
+    chipGrid.appendChild(chip);
+  });
+}
+renderChips();
+
+async function refreshBadge() {
+  session = await getSession();
+  if (!session) {
+    roleBadge.textContent = '비로그인 · 무료 1회/일';
+    roleBadge.className = 'badge badge-free';
+    return;
+  }
+  member = await getMember(session);
+  if (!member) { roleBadge.textContent = '오류'; return; }
+  if (member.role === 'student') {
+    roleBadge.textContent = '🎓 정규 수강생 · 무제한';
+    roleBadge.className = 'badge badge-student';
+  } else if (member.subscription_status === 'active') {
+    roleBadge.textContent = '✦ 구독중 · 무제한';
+    roleBadge.className = 'badge badge-active';
+  } else {
+    roleBadge.textContent = '무료 회원 · 1회/일';
+    roleBadge.className = 'badge badge-free';
+  }
+}
+refreshBadge();
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function canDrawToday() {
+  if (session && member) {
+    if (member.role === 'student' || member.subscription_status === 'active') return true;
+    if (member.daily_reading_reset_date !== today()) return true;
+    return member.daily_reading_count < 1;
+  }
+  const raw = localStorage.getItem('ct_free_draw');
+  if (!raw) return true;
+  const { date, count } = JSON.parse(raw);
+  if (date !== today()) return true;
+  return count < 1;
+}
+
+async function recordDraw() {
+  if (session && member && member.role !== 'student' && member.subscription_status !== 'active') {
+    const sb = await getSb();
+    const resetToday = member.daily_reading_reset_date === today();
+    const newCount = resetToday ? member.daily_reading_count + 1 : 1;
+    await sb.from('enrollments').update({
+      daily_reading_count: newCount,
+      daily_reading_reset_date: today(),
+    }).eq('member_id', session.user.id).eq('app_key', APP_KEY);
+    member.daily_reading_count = newCount;
+    member.daily_reading_reset_date = today();
+  } else if (!session) {
+    const raw = localStorage.getItem('ct_free_draw');
+    const cur = raw ? JSON.parse(raw) : { date: today(), count: 0 };
+    const count = cur.date === today() ? cur.count + 1 : 1;
+    localStorage.setItem('ct_free_draw', JSON.stringify({ date: today(), count }));
+  }
+}
+
+async function fetchCards() {
+  if (cardsCache) return cardsCache;
+  const sb = await getSb();
+  const { data, error } = await sb.from('tarot_cards').select('*').eq('card_type', '컬러타로');
+  if (error) throw error;
+  cardsCache = data;
+  return data;
+}
+
+function resolveImage(url) {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `https://cgxfsktnjsgxcyeqquhr.supabase.co/storage/v1/object/public/tarot-cards/color-tarot/${url}`;
+}
+
+let currentCard = null;
+let currentMoodText = '';
+let currentAiReading = null;
+
+async function loadAiReading(card, moodText) {
+  const aiLoading = document.getElementById('aiLoading');
+  const aiContent = document.getElementById('aiContent');
+  aiLoading.style.display = 'block';
+  aiContent.style.display = 'none';
+  document.getElementById('saveBtn').disabled = true;
+
+  try {
+    const res = await fetch('/api/reading', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ moodText, card }),
+    });
+    if (!res.ok) throw new Error('reading failed');
+    const data = await res.json();
+    currentAiReading = data;
+
+    document.getElementById('readingText').textContent = data.reading || '';
+    document.getElementById('aromaName').textContent = data.aroma?.name || '';
+    document.getElementById('aromaReason').textContent = data.aroma?.reason || '';
+    document.getElementById('teaName').textContent = data.tea?.name || '';
+    document.getElementById('teaReason').textContent = data.tea?.reason || '';
+    document.getElementById('gemName').textContent = data.gemstone?.name || '';
+    document.getElementById('gemReason').textContent = data.gemstone?.reason || '';
+    document.getElementById('closingText').textContent = data.closing || '';
+
+    aiLoading.style.display = 'none';
+    aiContent.style.display = 'block';
+  } catch (err) {
+    console.error(err);
+    aiLoading.innerHTML = '<p class="muted small">지금은 리딩 메시지를 불러오지 못했어요. 잠시 후 다시 시도해주세요.</p>';
+  } finally {
+    document.getElementById('saveBtn').disabled = false;
+  }
+}
+
+function renderResult(card, moodText) {
+  document.getElementById('cardImg').src = resolveImage(card.image_url);
+  document.getElementById('cardImg').alt = card.name || '';
+  document.getElementById('cardName').textContent = card.name || '';
+  document.getElementById('userMood').textContent = moodText ? `"${moodText}"` : '오늘의 색을 조용히 마주해보세요';
+
+  const studentBox = document.getElementById('studentBox');
+  if (member && member.role === 'student' && (card.student_question || card.student_phrase)) {
+    studentBox.style.display = 'block';
+    document.getElementById('studentQuestion').textContent = card.student_question || '';
+    document.getElementById('studentPhrase').textContent = card.student_phrase || '';
+  } else {
+    studentBox.style.display = 'none';
+  }
+
+  moodView.style.display = 'none';
+  loadingView.style.display = 'none';
+  resultView.style.display = 'block';
+
+  loadAiReading(card, moodText);
+}
+
+moodForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const moodText = document.getElementById('moodText').value.trim() || selectedMood || '';
+
+  if (!(await canDrawToday())) {
+    moodView.style.display = 'none';
+    if (session) {
+      showToast('오늘의 무료 리딩을 모두 사용하셨어요.');
+      limitBoxMember.style.display = 'block';
+    } else {
+      showToast('비회원은 하루 1회만 무료로 이용하실 수 있어요.');
+      limitBoxAnon.style.display = 'block';
+    }
+    return;
+  }
+
+  moodView.style.display = 'none';
+  loadingView.style.display = 'block';
+
+  try {
+    const cards = await fetchCards();
+    const card = cards[Math.floor(Math.random() * cards.length)];
+    currentCard = card;
+    currentMoodText = moodText;
+    await recordDraw();
+    setTimeout(() => renderResult(card, moodText), 550);
+  } catch (err) {
+    console.error(err);
+    showToast('카드를 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+    loadingView.style.display = 'none';
+    moodView.style.display = 'block';
+  }
+});
+
+function resetToMoodView() {
+  resultView.style.display = 'none';
+  limitBoxAnon.style.display = 'none';
+  limitBoxMember.style.display = 'none';
+  moodView.style.display = 'block';
+  document.getElementById('moodText').value = '';
+  selectedMood = null;
+  renderChips();
+}
+
+document.getElementById('backBtn').addEventListener('click', (e) => { e.preventDefault(); resetToMoodView(); });
+document.getElementById('redrawBtn').addEventListener('click', resetToMoodView);
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (!session) {
+    showToast('기록 저장은 로그인 후 이용하실 수 있어요.');
+    setTimeout(() => window.location.href = '/auth.html', 900);
+    return;
+  }
+  const sb = await getSb();
+  const { error } = await sb.from('readings').insert({
+    user_id: session.user.id,
+    card_id: currentCard.id,
+    mood_input: currentMoodText,
+    memo: currentAiReading ? JSON.stringify(currentAiReading) : null,
+    app_key: APP_KEY,
+  });
+  if (error) {
+    console.error(error);
+    showToast('저장에 실패했어요.');
+  } else {
+    showToast('기록에 저장했어요 ✓');
+  }
+});
+</script>
+</body>
+</html>

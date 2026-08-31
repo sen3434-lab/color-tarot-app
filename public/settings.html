@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>컬러 타로 힐링 · 설정</title>
+<link rel="stylesheet" href="/css/style.css"/>
+<style>
+  .profile-head { text-align: center; padding: 10px 0 26px; }
+  .avatar { width: 62px; height: 62px; border-radius: 50%; background: var(--secondary); display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 12px; }
+  .profile-head .email { font-size: 14px; font-weight: 500; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 0.8px solid var(--border); font-size: 13.5px; }
+  .row:last-child { border-bottom: none; }
+  .row .rl { color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Color Tarot <span>✦</span> Healing</div>
+  <div class="topbar-actions"></div>
+</div>
+
+<div class="container">
+  <div id="gate" style="display:none;" class="empty-state">
+    <div class="ic">🔒</div>
+    <p>설정은 로그인 후 확인하실 수 있어요.</p>
+    <a href="/auth.html" class="btn btn-primary mt-16">로그인 하기</a>
+  </div>
+
+  <div id="content" style="display:none;">
+    <div class="profile-head">
+      <div class="avatar">🙂</div>
+      <div class="email" id="userEmail"></div>
+      <span class="badge mt-8" id="roleBadge"></span>
+    </div>
+
+    <div class="section-label">계정</div>
+    <div class="card mb-24">
+      <div class="row"><span class="rl">등급</span><span id="rowRole"></span></div>
+      <div class="row"><span class="rl">구독 상태</span><span id="rowSub"></span></div>
+      <div class="row"><span class="rl">가입일</span><span id="rowJoined"></span></div>
+    </div>
+
+    <div class="section-label">일반</div>
+    <div class="card mb-24">
+      <div class="row">
+        <span class="rl">정규 수강생 인증</span>
+        <a href="/verify-student.html" class="btn btn-outline btn-sm">인증하기</a>
+      </div>
+      <div class="row">
+        <span class="rl">구독 관리</span>
+        <a href="/edu.html" class="btn btn-outline btn-sm">보기</a>
+      </div>
+    </div>
+
+    <button class="btn btn-outline btn-block" id="logoutBtn">로그아웃</button>
+    <button class="btn btn-danger btn-block mt-16" id="deleteBtn">회원 탈퇴 문의</button>
+  </div>
+</div>
+
+<script type="module">
+import { getSession, getMember, signOut, renderBottomNav, fmtDate } from '/js/app.js';
+renderBottomNav('/settings.html');
+
+async function init() {
+  const session = await getSession();
+  if (!session) {
+    document.getElementById('gate').style.display = 'block';
+    return;
+  }
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('userEmail').textContent = session.user.email;
+
+  const member = await getMember(session);
+  if (!member) return;
+
+  const roleLabel = member.role === 'student' ? '🎓 정규 수강생' : '일반 회원';
+  document.getElementById('roleBadge').textContent = roleLabel;
+  document.getElementById('roleBadge').className = 'badge mt-8 ' + (member.role === 'student' ? 'badge-student' : 'badge-free');
+  document.getElementById('rowRole').textContent = roleLabel;
+
+  const subLabel = { free: '무료', active: '구독중', expired: '만료됨' }[member.subscription_status] || member.subscription_status;
+  document.getElementById('rowSub').textContent = subLabel;
+  document.getElementById('rowJoined').textContent = member.created_at ? fmtDate(member.created_at) : '-';
+}
+init();
+
+document.getElementById('logoutBtn').addEventListener('click', signOut);
+document.getElementById('deleteBtn').addEventListener('click', () => {
+  alert('회원 탈퇴는 010-2426-9731(문자) 또는 ozmaj@naver.com 으로 문의해주세요.');
+});
+</script>
+</body>
+</html>
