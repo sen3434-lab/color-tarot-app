@@ -26,6 +26,15 @@ export async function getSb() {
   return _sbReady;
 }
 
+// True when the page is running inside the Android TWA (Trusted Web
+// Activity) wrapper rather than a regular browser — Chrome sets this
+// referrer specifically for TWA launches. Used to hide payment UI inside
+// the app, since Google Play requires Play Billing for digital goods sold
+// in-app; the same subscribe flow stays available on the plain website.
+export function isTWA() {
+  return document.referrer.startsWith('android-app://');
+}
+
 export async function getSession() {
   const sb = await getSb();
   const { data } = await sb.auth.getSession();

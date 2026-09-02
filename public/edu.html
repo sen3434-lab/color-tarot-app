@@ -122,6 +122,7 @@
         <li>평생 재결제 없음</li>
       </ul>
       <button class="btn btn-primary btn-block btn-sm" id="subscribeBtn">평생 이용권 구매하기</button>
+      <p class="small muted center mt-8" id="twaNote" style="display:none;">앱 결제는 준비 중이에요.<br/>웹(color-tarot-app.onrender.com)에서 구매하실 수 있어요.</p>
     </div>
   </div>
   <p class="small muted center mt-16" id="subNote"></p>
@@ -129,8 +130,13 @@
 </div>
 
 <script type="module">
-import { renderBottomNav, getSession, showToast } from '/js/app.js';
+import { renderBottomNav, getSession, showToast, isTWA } from '/js/app.js';
 renderBottomNav('/edu.html');
+
+if (isTWA()) {
+  document.getElementById('subscribeBtn').style.display = 'none';
+  document.getElementById('twaNote').style.display = 'block';
+}
 
 document.getElementById('subscribeBtn').addEventListener('click', async () => {
   const session = await getSession();

@@ -126,7 +126,7 @@
     <p class="muted small mt-8">구독하시면 매일 무제한으로 이용하실 수 있고,<br/><strong>컬러타로 정규 수업을 들으시면 평생 무료로 무제한</strong> 이용하실 수 있어요.</p>
     <div class="result-actions" style="max-width:320px;margin:20px auto 0;">
       <a href="/edu.html#curriculum" class="btn btn-outline">정규 수업 안내</a>
-      <a href="/edu.html" class="btn btn-primary">구독하기</a>
+      <a href="/edu.html" class="btn btn-primary" id="subscribeLink">구독하기</a>
     </div>
   </div>
 
@@ -207,7 +207,11 @@
 </div>
 
 <script type="module">
-import { getSb, getSession, getMember, showToast, renderBottomNav, APP_KEY } from '/js/app.js';
+import { getSb, getSession, getMember, showToast, renderBottomNav, APP_KEY, isTWA } from '/js/app.js';
+
+if (isTWA()) {
+  document.getElementById('subscribeLink').style.display = 'none';
+}
 import { withKoName } from '/js/cardNames.js';
 import { pickRandomMoods } from '/js/moodPrompts.js';
 
