@@ -1,7 +1,7 @@
 {
-  "name": "컬러 타로 힐링",
-  "short_name": "Color Tarot",
-  "description": "색으로 마음을 읽고, 향과 차로 하루를 돌보는 컬러 타로 힐링 앱",
+  "name": "OZ 컬러타로",
+  "short_name": "OZ 컬러타로",
+  "description": "색으로 마음을 읽고, 향과 차로 하루를 돌보는 OZ 컬러타로 힐링 앱",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
