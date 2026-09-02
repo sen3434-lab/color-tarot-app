@@ -76,6 +76,7 @@
 
 <script type="module">
 import { getSb, getSession, fmtDate, showToast, renderBottomNav, APP_KEY } from '/js/app.js';
+import { withKoName } from '/js/cardNames.js';
 
 renderBottomNav('/history.html');
 
@@ -203,7 +204,7 @@ function renderList(rows, session) {
       <img src="${resolveImage(card.image_url)}" alt=""/>
       <div class="hi-body">
         <div class="hi-date">${fmtDate(r.created_at)}</div>
-        <div class="hi-name">${card.name || ''} <span class="muted small">· ${card.keyword || ''}</span></div>
+        <div class="hi-name">${card.name ? withKoName(card.name) : ''} <span class="muted small">· ${card.keyword || ''}</span></div>
         <div class="hi-mood">${r.mood_input ? '"' + r.mood_input + '"' : ''}</div>
         ${readingSnippet ? `<div class="hi-reading small muted mt-8">${readingSnippet}</div>` : ''}
       </div>

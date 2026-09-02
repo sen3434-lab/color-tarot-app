@@ -208,6 +208,7 @@
 
 <script type="module">
 import { getSb, getSession, getMember, showToast, renderBottomNav, APP_KEY } from '/js/app.js';
+import { withKoName } from '/js/cardNames.js';
 import { pickRandomMoods } from '/js/moodPrompts.js';
 
 renderBottomNav('/index.html');
@@ -376,7 +377,7 @@ async function loadAiReading(card, moodText) {
 function renderResult(card, moodText) {
   document.getElementById('cardImg').src = resolveImage(card.image_url);
   document.getElementById('cardImg').alt = card.name || '';
-  document.getElementById('cardName').textContent = card.name || '';
+  document.getElementById('cardName').textContent = card.name ? withKoName(card.name) : '';
   document.getElementById('userMood').textContent = moodText ? `"${moodText}"` : '오늘의 색을 조용히 마주해보세요';
 
   const studentBox = document.getElementById('studentBox');
