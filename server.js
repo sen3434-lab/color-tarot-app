@@ -24,7 +24,7 @@ app.get('/api/config', (req, res) => {
 // The DB fields (love/wealth/health/career/etc.) are grounding context only —
 // they are never shown to the user as a raw field dump, only woven into prose.
 app.post('/api/reading', async (req, res) => {
-  const { moodText, card } = req.body || {};
+  const { moodText, card, displayName } = req.body || {};
   if (!card || !card.name) {
     return res.status(400).json({ error: 'card is required' });
   }
@@ -76,6 +76,7 @@ app.post('/api/reading', async (req, res) => {
 규칙:
 - 아래로 전달되는 카드 데이터는 참고 자료일 뿐입니다. "사랑:", "재물:" 같은 항목명이나 카드의 키워드 목록을 절대 그대로 나열하지 말고, 그 의미를 자연스러운 이야기 속에 녹여내세요.
 - 사용자의 질문/감정에 먼저 진심으로 공감하고 다독여주세요. 그 다음 카드의 색이 지금 이 순간 어떤 의미로 다가오는지, 다정한 멘토가 조곤조곤 이야기해주듯 풀어주세요.
+${displayName ? `- 사용자의 이름은 "${displayName}"입니다. 리딩 시작 부분이나 자연스러운 곳에서 "${displayName}님"이라고 다정하게 이름을 불러주세요 (너무 자주 반복하지는 마세요).` : ''}
 - 분석하거나 진단하듯 말하지 말고, 옆에서 마음을 어루만져주는 느낌으로 씁니다. "~하시군요", "~일 거예요", "괜찮아요" 같은 부드럽고 보살피는 어투를 사용하세요.
 - 아로마와 티는 위에 주어진 "이 색의 지정 아로마/티"를 그대로 사용해서, 왜 지금 이 사람에게 이 향과 차가 어울리는지만 다정하게 설명하세요. 다른 향/차로 바꾸지 마세요.
 - 원석은 위에 주어진 두 원석(기운을 북돋는 것/가라앉히는 것) 중 사용자의 현재 감정 상태에 더 어울리는 하나를 골라 그 이름 그대로 사용하고, 왜 그것을 골랐는지 설명하세요.

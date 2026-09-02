@@ -45,21 +45,30 @@ export const APP_KEY = 'color-tarot';
 // subscription_expires_at, daily_reading_count, daily_reading_reset_date }.
 // Also re-checks the student roster on every call, so someone added to the
 // roster after they first signed up gets upgraded on their next visit.
-export async function ensureMemberRow(session) {
+export async function ensureMemberRow(session, nickname) {
   if (!session) return null;
   const sb = await getSb();
 
   let { data: memberRow } = await sb.from('members').select('*').eq('id', session.user.id).maybeSingle();
   if (!memberRow) {
+    // Prefer a name already on the OAuth profile (Google gives full_name/name);
+    // otherwise fall back to a nickname typed in at signup. Email/password
+    // signup often needs an email-confirmation round trip before a session
+    // exists, so the nickname is also stashed in localStorage at submit time
+    // and picked up here if no explicit value was passed in.
+    const oauthName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || null;
+    let pendingNickname = null;
+    try { pendingNickname = localStorage.getItem('ct_pending_nickname'); } catch {}
     const { data: created, error } = await sb
       .from('members')
-      .insert({ id: session.user.id, email: session.user.email })
+      .insert({ id: session.user.id, email: session.user.email, display_name: oauthName || nickname || pendingNickname || null })
       .select()
       .single();
     if (error) {
       console.error('ensureMemberRow (members) failed', error);
       return null;
     }
+    try { localStorage.removeItem('ct_pending_nickname'); } catch {}
     memberRow = created;
   }
 
@@ -91,6 +100,7 @@ export async function ensureMemberRow(session) {
   return {
     id: memberRow.id,
     email: memberRow.email,
+    display_name: memberRow.display_name,
     created_at: memberRow.created_at,
     enrollment_id: enrollment.id,
     role: enrollment.role,
@@ -101,8 +111,8 @@ export async function ensureMemberRow(session) {
   };
 }
 
-export async function getMember(session) {
-  return ensureMemberRow(session);
+export async function getMember(session, nickname) {
+  return ensureMemberRow(session, nickname);
 }
 
 export async function signOut() {
@@ -125,7 +135,7 @@ export function showToast(msg, ms = 2200) {
 }
 
 const NAV_ITEMS = [
-  { href: '/index.html', ic: '\u{1F3B4}', label: '리딩' },
+  { href: '/index.html', ic: '\u{1F52E}', label: '리딩' },
   { href: '/history.html', ic: '\u{1F5D3}️', label: '기록' },
   { href: '/edu.html', ic: '\u{1F393}', label: '배움' },
   { href: '/settings.html', ic: '\u{2699}️', label: '설정' },

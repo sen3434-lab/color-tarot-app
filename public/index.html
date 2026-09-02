@@ -75,7 +75,7 @@
 <body>
 
 <div class="topbar">
-  <div class="brand">Color Tarot <span>✦</span> Healing</div>
+  <a href="/index.html" class="brand">Color Tarot <span>✦</span> Healing</a>
   <div class="topbar-actions">
     <span class="badge badge-free" id="roleBadge">불러오는 중</span>
     <a href="/settings.html" class="icon-btn">계정</a>
@@ -88,7 +88,7 @@
     <div class="hero">
       <div class="hero-aura"></div>
       <div class="hero-eyebrow">Color Healing</div>
-      <h1>오늘, 어떤 마음이신가요?</h1>
+      <h1 id="heroTitle">오늘, 어떤 마음이신가요?</h1>
       <p>color 한 장이 당신의 마음을 가만히 안아드릴게요.<br/>편하게 이야기해주세요.</p>
       <div class="hero-dots">
         <div class="d" style="background:#c8202a;"></div>
@@ -106,7 +106,7 @@
         <textarea id="moodText" placeholder="지금 느끼는 감정을 편하게 적어보세요..."></textarea>
       </div>
       <div class="draw-btn-wrap">
-        <button type="submit" class="btn btn-primary" id="drawBtn">🎴 마음을 색으로 만나보기</button>
+        <button type="submit" class="btn btn-primary" id="drawBtn">🔮 마음을 색으로 만나보기</button>
       </div>
     </form>
   </div>
@@ -270,6 +270,9 @@ async function refreshBadge() {
     roleBadge.textContent = '무료 회원 · 1회/일';
     roleBadge.className = 'badge badge-free';
   }
+  if (member.display_name) {
+    document.getElementById('heroTitle').textContent = `${member.display_name}님, 오늘 어떤 마음이신가요?`;
+  }
 }
 refreshBadge();
 
@@ -337,7 +340,7 @@ async function loadAiReading(card, moodText) {
     const res = await fetch('/api/reading', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ moodText, card }),
+      body: JSON.stringify({ moodText, card, displayName: member?.display_name || null }),
     });
     if (!res.ok) throw new Error('reading failed');
     const data = await res.json();

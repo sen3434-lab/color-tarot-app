@@ -21,7 +21,7 @@
 <body>
 
 <div class="topbar">
-  <div class="brand">Color Tarot <span>✦</span> Healing</div>
+  <a href="/index.html" class="brand">Color Tarot <span>✦</span> Healing</a>
   <div class="topbar-actions"></div>
 </div>
 
@@ -41,6 +41,13 @@
 
     <div class="section-label">계정</div>
     <div class="card mb-24">
+      <div class="row">
+        <span class="rl">이름 / 예명</span>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="nameInput" placeholder="이름을 입력해주세요" style="border:0.8px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;width:120px;"/>
+          <button class="btn btn-outline btn-sm" id="saveNameBtn">저장</button>
+        </span>
+      </div>
       <div class="row"><span class="rl">등급</span><span id="rowRole"></span></div>
       <div class="row"><span class="rl">구독 상태</span><span id="rowSub"></span></div>
       <div class="row"><span class="rl">가입일</span><span id="rowJoined"></span></div>
@@ -66,11 +73,14 @@
 </div>
 
 <script type="module">
-import { getSession, getMember, signOut, renderBottomNav, fmtDate } from '/js/app.js';
+import { getSb, getSession, getMember, signOut, renderBottomNav, fmtDate, showToast } from '/js/app.js';
 renderBottomNav('/settings.html');
+
+let currentSession = null;
 
 async function init() {
   const session = await getSession();
+  currentSession = session;
   if (!session) {
     document.getElementById('gate').style.display = 'block';
     return;
@@ -80,6 +90,8 @@ async function init() {
 
   const member = await getMember(session);
   if (!member) return;
+
+  document.getElementById('nameInput').value = member.display_name || '';
 
   const roleLabel = member.role === 'student' ? '🎓 정규 수강생' : '일반 회원';
   document.getElementById('roleBadge').textContent = roleLabel;
@@ -99,6 +111,18 @@ async function init() {
   }
 }
 init();
+
+document.getElementById('saveNameBtn').addEventListener('click', async () => {
+  if (!currentSession) return;
+  const name = document.getElementById('nameInput').value.trim();
+  const sb = await getSb();
+  const { error } = await sb.from('members').update({ display_name: name || null }).eq('id', currentSession.user.id);
+  if (error) {
+    showToast('저장에 실패했어요.');
+  } else {
+    showToast('이름을 저장했어요 ✓');
+  }
+});
 
 document.getElementById('logoutBtn').addEventListener('click', signOut);
 document.getElementById('deleteBtn').addEventListener('click', () => {
