@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>컬러 타로 힐링 · 리딩</title>
 <link rel="stylesheet" href="/css/style.css"/>
+<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#bc6338"/>
+<link rel="icon" href="/icons/icon-192.png"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.png"/>
 <style>
   .hero { position: relative; text-align: center; padding: 18px 0 6px; }
   .hero-aura {
@@ -59,6 +63,10 @@
 
   .ai-loading { text-align: center; padding: 20px 0; }
   .ai-loading p { font-size: 12.5px; color: var(--muted-foreground); margin-top: 10px; }
+
+  .upsell-box { text-align: center; padding: 22px; background: var(--secondary); border-radius: 16px; margin-top: 16px; }
+  .upsell-box .ic { font-size: 22px; margin-bottom: 10px; letter-spacing: 4px; }
+  .upsell-box p { font-size: 13.5px; line-height: 1.6; }
 
   .result-actions { display: flex; gap: 10px; margin-top: 26px; }
   .result-actions .btn { flex: 1; }
@@ -153,25 +161,33 @@
         <p id="readingText"></p>
       </div>
 
-      <div class="rx-grid">
-        <div class="rx-card">
-          <div class="rx-head"><span class="ic">🌿</span> <span>센트 처방</span></div>
-          <p class="rx-name" id="aromaName"></p>
-          <p class="rx-reason" id="aromaReason"></p>
+      <div id="memberOnlyContent">
+        <div class="rx-grid">
+          <div class="rx-card">
+            <div class="rx-head"><span class="ic">🌿</span> <span>센트 처방</span></div>
+            <p class="rx-name" id="aromaName"></p>
+            <p class="rx-reason" id="aromaReason"></p>
+          </div>
+          <div class="rx-card">
+            <div class="rx-head"><span class="ic">🍵</span> <span>티 처방</span></div>
+            <p class="rx-name" id="teaName"></p>
+            <p class="rx-reason" id="teaReason"></p>
+          </div>
+          <div class="rx-card">
+            <div class="rx-head"><span class="ic">💎</span> <span>원석 처방</span></div>
+            <p class="rx-name" id="gemName"></p>
+            <p class="rx-reason" id="gemReason"></p>
+          </div>
         </div>
-        <div class="rx-card">
-          <div class="rx-head"><span class="ic">🍵</span> <span>티 처방</span></div>
-          <p class="rx-name" id="teaName"></p>
-          <p class="rx-reason" id="teaReason"></p>
-        </div>
-        <div class="rx-card">
-          <div class="rx-head"><span class="ic">💎</span> <span>원석 처방</span></div>
-          <p class="rx-name" id="gemName"></p>
-          <p class="rx-reason" id="gemReason"></p>
-        </div>
+
+        <div class="closing-box" id="closingText"></div>
       </div>
 
-      <div class="closing-box" id="closingText"></div>
+      <div id="anonUpsell" class="upsell-box" style="display:none;">
+        <div class="ic">🌿🍵💎</div>
+        <p><strong>회원가입하시면 이 카드에 맞는 향·차·원석 처방까지 함께 보실 수 있어요.</strong></p>
+        <a href="/auth.html" class="btn btn-primary mt-16">무료로 회원가입하기</a>
+      </div>
     </div>
 
     <details class="accordion" id="studentBox" style="display:none;">
@@ -182,7 +198,7 @@
       </div>
     </details>
 
-    <div class="result-actions">
+    <div class="result-actions" id="resultActions">
       <button class="btn btn-outline" id="saveBtn">기록에 저장</button>
       <button class="btn btn-primary" id="redrawBtn">새 카드 뽑기</button>
     </div>
@@ -328,13 +344,21 @@ async function loadAiReading(card, moodText) {
     currentAiReading = data;
 
     document.getElementById('readingText').textContent = data.reading || '';
-    document.getElementById('aromaName').textContent = data.aroma?.name || '';
-    document.getElementById('aromaReason').textContent = data.aroma?.reason || '';
-    document.getElementById('teaName').textContent = data.tea?.name || '';
-    document.getElementById('teaReason').textContent = data.tea?.reason || '';
-    document.getElementById('gemName').textContent = data.gemstone?.name || '';
-    document.getElementById('gemReason').textContent = data.gemstone?.reason || '';
-    document.getElementById('closingText').textContent = data.closing || '';
+
+    if (session) {
+      document.getElementById('aromaName').textContent = data.aroma?.name || '';
+      document.getElementById('aromaReason').textContent = data.aroma?.reason || '';
+      document.getElementById('teaName').textContent = data.tea?.name || '';
+      document.getElementById('teaReason').textContent = data.tea?.reason || '';
+      document.getElementById('gemName').textContent = data.gemstone?.name || '';
+      document.getElementById('gemReason').textContent = data.gemstone?.reason || '';
+      document.getElementById('closingText').textContent = data.closing || '';
+      document.getElementById('memberOnlyContent').style.display = 'block';
+      document.getElementById('anonUpsell').style.display = 'none';
+    } else {
+      document.getElementById('memberOnlyContent').style.display = 'none';
+      document.getElementById('anonUpsell').style.display = 'block';
+    }
 
     aiLoading.style.display = 'none';
     aiContent.style.display = 'block';
@@ -360,6 +384,8 @@ function renderResult(card, moodText) {
   } else {
     studentBox.style.display = 'none';
   }
+
+  document.getElementById('saveBtn').style.display = session ? 'inline-flex' : 'none';
 
   moodView.style.display = 'none';
   loadingView.style.display = 'none';

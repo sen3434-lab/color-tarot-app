@@ -16,6 +16,12 @@ async function initSupabase() {
 
 _sbReady = initSupabase();
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 export async function getSb() {
   return _sbReady;
 }
