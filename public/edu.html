@@ -100,43 +100,73 @@
     </div>
   </div>
 
-  <div class="section-label mt-32">일반 회원 이용권</div>
-  <div class="plan-grid">
-    <div class="plan">
-      <div class="serif" style="font-size:14px;">무료 회원</div>
-      <div class="price">₩0</div>
-      <ul>
-        <li>하루 1회 무료 리딩</li>
-        <li>향·차·원석 처방 포함</li>
-        <li>기록 저장 포함</li>
-      </ul>
-      <button class="btn btn-outline btn-block btn-sm" disabled>현재 이용중</button>
+  <div id="planSection">
+    <div class="section-label mt-32">일반 회원 이용권</div>
+    <div class="plan-grid">
+      <div class="plan">
+        <div class="serif" style="font-size:14px;">무료 회원</div>
+        <div class="price">₩0</div>
+        <ul>
+          <li>하루 1회 무료 리딩</li>
+          <li>향·차·원석 처방 포함</li>
+          <li>기록 저장 포함</li>
+        </ul>
+        <button class="btn btn-outline btn-block btn-sm" disabled>현재 이용중</button>
+      </div>
+      <div class="plan reco">
+        <div class="serif" style="font-size:14px;">평생 이용권</div>
+        <div class="price">₩9,900<small> 1회 결제</small></div>
+        <ul>
+          <li>매일 무제한 리딩</li>
+          <li>향·차·원석 처방 전체</li>
+          <li>기록 캘린더 저장</li>
+          <li>평생 재결제 없음</li>
+        </ul>
+        <button class="btn btn-primary btn-block btn-sm" id="subscribeBtn">평생 이용권 구매하기</button>
+        <p class="small muted center mt-8" id="twaNote" style="display:none;">앱 결제는 준비 중이에요.<br/>웹(color-tarot-app.onrender.com)에서 구매하실 수 있어요.</p>
+      </div>
     </div>
-    <div class="plan reco">
-      <div class="serif" style="font-size:14px;">평생 이용권</div>
-      <div class="price">₩9,900<small> 1회 결제</small></div>
-      <ul>
-        <li>매일 무제한 리딩</li>
-        <li>향·차·원석 처방 전체</li>
-        <li>기록 캘린더 저장</li>
-        <li>평생 재결제 없음</li>
-      </ul>
-      <button class="btn btn-primary btn-block btn-sm" id="subscribeBtn">평생 이용권 구매하기</button>
-      <p class="small muted center mt-8" id="twaNote" style="display:none;">앱 결제는 준비 중이에요.<br/>웹(color-tarot-app.onrender.com)에서 구매하실 수 있어요.</p>
+    <p class="small muted center mt-16" id="subNote"></p>
+  </div>
+
+  <div id="alreadyUnlimited" class="mt-32" style="display:none;">
+    <div class="card center" style="padding:26px 20px;">
+      <div style="font-size:26px;margin-bottom:8px;">🎉</div>
+      <p style="font-weight:600;" id="alreadyUnlimitedTitle">이미 무제한으로 이용 중이에요</p>
+      <p class="small muted mt-8" id="alreadyUnlimitedDesc"></p>
     </div>
   </div>
-  <p class="small muted center mt-16" id="subNote"></p>
 
 </div>
 
 <script type="module">
-import { renderBottomNav, getSession, showToast, isTWA } from '/js/app.js';
+import { renderBottomNav, getSession, getMember, showToast, isTWA } from '/js/app.js';
 renderBottomNav('/edu.html');
 
 if (isTWA()) {
   document.getElementById('subscribeBtn').style.display = 'none';
   document.getElementById('twaNote').style.display = 'block';
 }
+
+async function reflectMemberStatus() {
+  const session = await getSession();
+  if (!session) return;
+  const member = await getMember(session);
+  if (!member) return;
+
+  if (member.role === 'student') {
+    document.getElementById('planSection').style.display = 'none';
+    document.getElementById('alreadyUnlimitedTitle').textContent = '🎓 정규 수강생 · 이미 평생 무제한이에요';
+    document.getElementById('alreadyUnlimitedDesc').textContent = '컬러타로 정규 수업을 수강하신 분께는 모든 기능이 평생 무료로 열려있어요. 구매하실 필요 없어요.';
+    document.getElementById('alreadyUnlimited').style.display = 'block';
+  } else if (member.subscription_status === 'active') {
+    document.getElementById('planSection').style.display = 'none';
+    document.getElementById('alreadyUnlimitedTitle').textContent = '✦ 이미 평생 이용권을 이용 중이에요';
+    document.getElementById('alreadyUnlimitedDesc').textContent = '추가로 구매하실 필요 없이 계속 무제한으로 이용하실 수 있어요.';
+    document.getElementById('alreadyUnlimited').style.display = 'block';
+  }
+}
+reflectMemberStatus();
 
 document.getElementById('subscribeBtn').addEventListener('click', async () => {
   const session = await getSession();
