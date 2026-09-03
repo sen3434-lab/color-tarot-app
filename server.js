@@ -158,7 +158,10 @@ ${groundingLines}`;
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// dotfiles: 'allow' is needed so /.well-known/assetlinks.json (Digital
+// Asset Links, for TWA verification) actually gets served — express.static
+// ignores dot-prefixed paths by default.
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'allow' }));
 
 app.listen(PORT, () => {
   console.log(`Color Tarot Healing App running at http://localhost:${PORT}`);

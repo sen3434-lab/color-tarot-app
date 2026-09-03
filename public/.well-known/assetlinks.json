@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.ozma.colortarot",
+    "sha256_cert_fingerprints": [
+      "1A:64:5E:99:A4:97:CC:F6:77:DD:49:5B:95:1C:B8:CD:0B:86:D3:5C:04:DE:27:39:68:8E:4E:A4:7B:F9:9B:B4"
+    ]
+  }
+}]

@@ -58,7 +58,17 @@ export async function ensureMemberRow(session, nickname) {
   if (!session) return null;
   const sb = await getSb();
 
-  let { data: memberRow } = await sb.from('members').select('*').eq('id', session.user.id).maybeSingle();
+  // One round trip instead of two: fetch the member row with its
+  // color-tarot enrollment embedded (PostgREST follows the FK relationship),
+  // so returning visitors — the common case — only pay for a single request.
+  let { data: memberRow } = await sb
+    .from('members')
+    .select('*, enrollments!inner(*)')
+    .eq('id', session.user.id)
+    .eq('enrollments.app_key', APP_KEY)
+    .maybeSingle();
+  let enrollment = memberRow?.enrollments?.[0];
+
   if (!memberRow) {
     // Prefer a name already on the OAuth profile (Google gives full_name/name);
     // otherwise fall back to a nickname typed in at signup. Email/password
@@ -81,13 +91,6 @@ export async function ensureMemberRow(session, nickname) {
     memberRow = created;
   }
 
-  let { data: enrollment } = await sb
-    .from('enrollments')
-    .select('*')
-    .eq('member_id', session.user.id)
-    .eq('app_key', APP_KEY)
-    .maybeSingle();
-
   if (!enrollment) {
     const { data: created, error } = await sb
       .from('enrollments')
@@ -99,9 +102,11 @@ export async function ensureMemberRow(session, nickname) {
       return null;
     }
     enrollment = created;
-  } else {
+  } else if (enrollment.role !== 'student') {
+    // Only worth the extra round trip if they're not already a student —
+    // once promoted there's nothing left to recheck.
     const { data: isStudent } = await sb.rpc('recheck_student_status', { p_app_key: APP_KEY });
-    if (isStudent && enrollment.role !== 'student') {
+    if (isStudent) {
       enrollment = { ...enrollment, role: 'student' };
     }
   }
