@@ -58,16 +58,18 @@ export async function ensureMemberRow(session, nickname) {
   if (!session) return null;
   const sb = await getSb();
 
-  // One round trip instead of two: fetch the member row with its
-  // color-tarot enrollment embedded (PostgREST follows the FK relationship),
-  // so returning visitors — the common case — only pay for a single request.
+  // Two separate lookups on purpose — a person who already has a `members`
+  // row from another ozma app but no enrollment for *this* app_key yet
+  // must still be recognized as an existing member. An inner-joined single
+  // query here would wrongly treat "no enrollment for this app" as "no
+  // member at all" and try to re-insert a members row with the same id,
+  // which fails on the primary key (this is exactly what was happening to
+  // rune-tarot-app users logging into color-tarot for the first time).
   let { data: memberRow } = await sb
     .from('members')
-    .select('*, enrollments!inner(*)')
+    .select('*')
     .eq('id', session.user.id)
-    .eq('enrollments.app_key', APP_KEY)
     .maybeSingle();
-  let enrollment = memberRow?.enrollments?.[0];
 
   if (!memberRow) {
     // Prefer a name already on the OAuth profile (Google gives full_name/name);
@@ -90,6 +92,13 @@ export async function ensureMemberRow(session, nickname) {
     try { localStorage.removeItem('ct_pending_nickname'); } catch {}
     memberRow = created;
   }
+
+  let { data: enrollment } = await sb
+    .from('enrollments')
+    .select('*')
+    .eq('member_id', session.user.id)
+    .eq('app_key', APP_KEY)
+    .maybeSingle();
 
   if (!enrollment) {
     const { data: created, error } = await sb
