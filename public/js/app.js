@@ -231,6 +231,7 @@ export async function claimFreeCoins(session) {
   const parts = [];
   if (data.signup > 0) parts.push(`가입 보너스 +${data.signup}코인`);
   if (data.attendance > 0) parts.push(`출석 보너스 +${data.attendance}코인`);
+  if (data.admin > 0) parts.push(`운영자 지급 +${data.admin}코인`);
   if (parts.length) showToast('🪙 ' + parts.join(' · '), 3200);
   return data.balance;
 }

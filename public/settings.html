@@ -64,6 +64,10 @@
           <span class="rl">코인 충전 · 내역</span>
           <a href="/coins.html" class="btn btn-outline btn-sm">보기</a>
         </div>
+        <div class="row" id="rowAdmin" style="display:none;">
+          <span class="rl">운영자 도구</span>
+          <a href="/admin.html" class="btn btn-outline btn-sm">코인 지급</a>
+        </div>
       </div>
     </div>
 
@@ -99,6 +103,8 @@ async function init() {
   document.getElementById('rowRole').textContent = roleLabel;
 
   document.getElementById('rowCoins').textContent = '🪙 ' + (await getBalance()) + '코인';
+  const { data: isAdmin } = await (await getSb()).rpc('am_i_admin');
+  if (isAdmin === true) document.getElementById('rowAdmin').style.display = 'flex';
   document.getElementById('rowJoined').textContent = member.created_at ? fmtDate(member.created_at) : '-';
 
   const isStudent = member.role === 'student';

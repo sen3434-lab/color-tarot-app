@@ -35,13 +35,20 @@ create table if not exists public.coin_ledger (
   delta int not null check (delta <> 0),
   balance_after int not null check (balance_after >= 0),
   kind text not null check (kind in
-    ('signup_bonus','daily_attendance','class_code','purchase','spend','refund','adjust')),
+    ('signup_bonus','daily_attendance','class_code','purchase','spend','refund','adjust','admin_grant')),
   app_key text references public.apps(key),
   ref text,                -- 리딩 id / 프로필 id / 코드 / 결제 id
   memo text,               -- 화면에 보여줄 설명
   grant_date date,         -- 출석 보너스의 한국시간 날짜
+  granted_by uuid references public.members(id) on delete set null,  -- 운영자 지급일 때 누가
   created_at timestamptz not null default now()
 );
+
+-- (표가 이미 있던 경우를 위해: 새 칸과 종류 규칙을 보강)
+alter table public.coin_ledger add column if not exists granted_by uuid references public.members(id) on delete set null;
+alter table public.coin_ledger drop constraint if exists coin_ledger_kind_check;
+alter table public.coin_ledger add constraint coin_ledger_kind_check check (kind in
+  ('signup_bonus','daily_attendance','class_code','purchase','spend','refund','adjust','admin_grant'));
 
 -- 중복 지급 방지
 create unique index if not exists coin_ledger_signup_once
@@ -52,8 +59,32 @@ create unique index if not exists coin_ledger_class_code_once
   on public.coin_ledger (member_id, ref) where kind = 'class_code';
 create unique index if not exists coin_ledger_purchase_once
   on public.coin_ledger (ref) where kind = 'purchase';
+-- 같은 운영자 지급 묶음(batch)이 두 번 들어가지 않게 (화면에서 두 번 눌러도 안전)
+create unique index if not exists coin_ledger_admin_grant_once
+  on public.coin_ledger (member_id, ref) where kind = 'admin_grant';
 create index if not exists coin_ledger_member_recent
   on public.coin_ledger (member_id, created_at desc);
+
+-- 운영자 목록. 앱에서는 읽을 수도 쓸 수도 없고, SQL Editor 에서만 추가/삭제.
+create table if not exists public.admins (
+  member_id uuid primary key references public.members(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+-- 아직 가입하지 않은 수강생을 위한 "가입하면 자동 지급" 대기 목록
+create table if not exists public.coin_pending_grants (
+  id bigserial primary key,
+  email text not null check (email = lower(email)),
+  coins int not null check (coins between 1 and 5000),
+  memo text,
+  batch text,
+  created_by uuid references public.members(id) on delete set null,
+  created_at timestamptz not null default now(),
+  claimed_by uuid references public.members(id) on delete set null,
+  claimed_at timestamptz,
+  unique (email, batch)
+);
+create index if not exists coin_pending_open on public.coin_pending_grants (email) where claimed_at is null;
 
 -- 항목별 가격 (코드 수정 없이 여기서 바꿈)
 create table if not exists public.coin_prices (
@@ -128,7 +159,7 @@ on conflict (product_id) do update
 -- 잔액 부족이면 'insufficient_coins' 예외.
 create or replace function public._wallet_apply(
   p_member uuid, p_delta int, p_kind text, p_app_key text,
-  p_ref text, p_memo text, p_grant_date date default null)
+  p_ref text, p_memo text, p_grant_date date default null, p_granted_by uuid default null)
 returns int
 language plpgsql
 security definer
@@ -146,8 +177,8 @@ begin
     raise exception 'insufficient_coins';
   end if;
 
-  insert into public.coin_ledger (member_id, delta, balance_after, kind, app_key, ref, memo, grant_date)
-    values (p_member, p_delta, v_new, p_kind, p_app_key, p_ref, p_memo, p_grant_date)
+  insert into public.coin_ledger (member_id, delta, balance_after, kind, app_key, ref, memo, grant_date, granted_by)
+    values (p_member, p_delta, v_new, p_kind, p_app_key, p_ref, p_memo, p_grant_date, p_granted_by)
     on conflict do nothing
     returning id into v_id;
   if v_id is null then
@@ -187,6 +218,7 @@ as $$
 declare
   v_cost int;
   v_balance int;
+  v_label text := case p_item when 'result' then '성향 해설 열기' when 'compatibility' then '궁합 보기' else p_item end;
 begin
   -- 같은 사람의 동시 요청이 이중 차감되지 않도록 지갑 행을 먼저 잠금
   insert into public.wallets (member_id) values (p_member) on conflict do nothing;
@@ -200,7 +232,7 @@ begin
 
   v_cost := public._price(p_app_key, p_item);
   begin
-    v_balance := public._wallet_apply(p_member, -v_cost, 'spend', p_app_key, p_item || ':' || p_ref, p_item);
+    v_balance := public._wallet_apply(p_member, -v_cost, 'spend', p_app_key, p_item || ':' || p_ref, v_label);
   exception when raise_exception then
     if sqlerrm = 'insufficient_coins' then
       select balance into v_balance from public.wallets where member_id = p_member;
@@ -231,12 +263,16 @@ declare
   v_today date := (now() at time zone 'Asia/Seoul')::date;
   v_signup int := 0;
   v_attend int := 0;
+  v_admin int := 0;
   v_balance int;
+  v_email text;
+  v_pending record;
 begin
   if v_uid is null then
     return jsonb_build_object('ok', false, 'reason', 'not_logged_in');
   end if;
-  if not exists (select 1 from public.members where id = v_uid) then
+  select lower(email) into v_email from public.members where id = v_uid;
+  if not found then
     return jsonb_build_object('ok', false, 'reason', 'no_member');
   end if;
 
@@ -247,8 +283,22 @@ begin
     v_attend := 1;
   end if;
 
+  -- 운영자가 이 이메일로 미리 등록해둔 지급(가입 전 수강생)이 있으면 지금 지급
+  if v_email is not null then
+    for v_pending in
+      select id, coins, memo, created_by from public.coin_pending_grants
+      where email = v_email and claimed_at is null order by id for update
+    loop
+      if public._wallet_apply(v_uid, v_pending.coins, 'admin_grant', null, 'pending:' || v_pending.id,
+                              coalesce(v_pending.memo, '운영자 지급'), null, v_pending.created_by) is not null then
+        v_admin := v_admin + v_pending.coins;
+      end if;
+      update public.coin_pending_grants set claimed_at = now(), claimed_by = v_uid where id = v_pending.id;
+    end loop;
+  end if;
+
   select coalesce(balance, 0) into v_balance from public.wallets where member_id = v_uid;
-  return jsonb_build_object('ok', true, 'signup', v_signup, 'attendance', v_attend,
+  return jsonb_build_object('ok', true, 'signup', v_signup, 'attendance', v_attend, 'admin', v_admin,
                             'balance', coalesce(v_balance, 0));
 end;
 $$;
@@ -438,9 +488,12 @@ alter table public.coin_prices     enable row level security;
 alter table public.unlocked_items  enable row level security;
 alter table public.coin_products   enable row level security;
 alter table public.payments        enable row level security;
+alter table public.admins          enable row level security;
+alter table public.coin_pending_grants enable row level security;
 
 revoke all on public.wallets, public.coin_ledger, public.coin_prices,
-              public.unlocked_items, public.coin_products, public.payments
+              public.unlocked_items, public.coin_products, public.payments,
+              public.admins, public.coin_pending_grants
   from anon, authenticated;
 
 grant select on public.wallets, public.coin_ledger, public.unlocked_items, public.payments
@@ -461,7 +514,7 @@ drop policy if exists "public products" on public.coin_products;
 create policy "public products" on public.coin_products for select using (active);
 
 -- 함수: 기본적으로 아무도 못 부르게 한 뒤 필요한 곳에만 허용
-revoke all on function public._wallet_apply(uuid,int,text,text,text,text,date) from public, anon, authenticated;
+revoke all on function public._wallet_apply(uuid,int,text,text,text,text,date,uuid) from public, anon, authenticated;
 revoke all on function public._price(text,text)                                from public, anon, authenticated;
 revoke all on function public._unlock(uuid,text,text,text,jsonb)               from public, anon, authenticated;
 revoke all on function public.claim_free_coins()                               from public, anon;
