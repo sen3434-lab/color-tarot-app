@@ -49,7 +49,7 @@
         </span>
       </div>
       <div class="row"><span class="rl">등급</span><span id="rowRole"></span></div>
-      <div class="row"><span class="rl">구독 상태</span><span id="rowSub"></span></div>
+      <div class="row"><span class="rl">보유 코인</span><span><a href="/coins.html" id="rowCoins" style="color:var(--primary-dark);font-weight:600;">-</a></span></div>
       <div class="row"><span class="rl">가입일</span><span id="rowJoined"></span></div>
     </div>
 
@@ -60,9 +60,9 @@
           <span class="rl">정규 수강생 인증</span>
           <a href="/verify-student.html" class="btn btn-outline btn-sm">인증하기</a>
         </div>
-        <div class="row" id="rowSubscribe">
-          <span class="rl">구독 관리</span>
-          <a href="/edu.html" class="btn btn-outline btn-sm">보기</a>
+        <div class="row">
+          <span class="rl">코인 충전 · 내역</span>
+          <a href="/coins.html" class="btn btn-outline btn-sm">보기</a>
         </div>
       </div>
     </div>
@@ -73,7 +73,7 @@
 </div>
 
 <script type="module">
-import { getSb, getSession, getMember, signOut, renderBottomNav, fmtDate, showToast } from '/js/app.js';
+import { getSb, getSession, getMember, getBalance, signOut, renderBottomNav, fmtDate, showToast } from '/js/app.js';
 renderBottomNav('/settings.html');
 
 let currentSession = null;
@@ -98,14 +98,11 @@ async function init() {
   document.getElementById('roleBadge').className = 'badge mt-8 ' + (member.role === 'student' ? 'badge-student' : 'badge-free');
   document.getElementById('rowRole').textContent = roleLabel;
 
-  const subLabel = { free: '무료', active: '구독중', expired: '만료됨' }[member.subscription_status] || member.subscription_status;
-  document.getElementById('rowSub').textContent = subLabel;
+  document.getElementById('rowCoins').textContent = '🪙 ' + (await getBalance()) + '코인';
   document.getElementById('rowJoined').textContent = member.created_at ? fmtDate(member.created_at) : '-';
 
   const isStudent = member.role === 'student';
-  const isSubscribed = member.subscription_status === 'active';
   document.getElementById('rowVerify').style.display = isStudent ? 'none' : 'flex';
-  document.getElementById('rowSubscribe').style.display = (isStudent || isSubscribed) ? 'none' : 'flex';
   if (isStudent) {
     document.getElementById('generalSection').style.display = 'none';
   }

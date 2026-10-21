@@ -24,17 +24,88 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+const APP_KEY = 'color-tarot';
+const COIN_ITEM = 'reading';
+
+// Every call below is made WITH THE USER'S OWN TOKEN, so Supabase row-level
+// security decides what they can see — this server holds no admin key.
+function sbFetch(pathAndQuery, token, init = {}) {
+  return fetch(`${process.env.SUPABASE_URL}${pathAndQuery}`, {
+    ...init,
+    headers: {
+      apikey: process.env.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(init.headers || {}),
+    },
+  });
+}
+
+class HttpError extends Error {
+  constructor(status, code, extra = {}) {
+    super(code);
+    this.status = status;
+    this.body = { error: code, ...extra };
+  }
+}
+
+async function requireUser(req) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) throw new HttpError(401, 'login_required');
+  const r = await sbFetch('/auth/v1/user', token);
+  if (!r.ok) throw new HttpError(401, 'login_required');
+  return { token, user: await r.json() };
+}
+
+let priceCache = { coins: 1, at: 0 };
+async function readingPrice(token) {
+  if (Date.now() - priceCache.at < 5 * 60 * 1000) return priceCache.coins;
+  try {
+    const r = await sbFetch(`/rest/v1/coin_prices?app_key=eq.${APP_KEY}&item=eq.${COIN_ITEM}&select=coins`, token);
+    const rows = r.ok ? await r.json() : [];
+    if (rows[0]?.coins > 0) priceCache = { coins: rows[0].coins, at: Date.now() };
+  } catch (e) {
+    console.error('price lookup failed, using cached/default', e);
+  }
+  return priceCache.coins;
+}
+
+async function walletBalance(token) {
+  const r = await sbFetch('/rest/v1/wallets?select=balance', token);
+  if (!r.ok) throw new HttpError(502, 'wallet_unavailable');
+  const rows = await r.json();
+  return rows[0]?.balance ?? 0;
+}
+
 // Generates a warm, personalized reading (color psychology + aroma/tea/gemstone
 // prescriptions) from the user's mood text and the drawn card's DB content.
 // The DB fields (love/wealth/health/career/etc.) are grounding context only —
 // they are never shown to the user as a raw field dump, only woven into prose.
 app.post('/api/reading', createLimiter(), async (req, res) => {
   const { moodText, card, displayName } = req.body || {};
-  if (!card || !card.name) {
+  if (!card || !card.name || !Number.isInteger(card.id)) {
     return res.status(400).json({ error: 'card is required' });
   }
   if (!process.env.GEMINI_API_KEY) {
     return res.status(503).json({ error: 'AI reading is not configured yet (missing GEMINI_API_KEY).' });
+  }
+
+  // Coins are checked BEFORE spending AI money, but only charged AFTER the
+  // reading is generated — if the AI fails the user loses nothing.
+  let token;
+  let cost;
+  try {
+    ({ token } = await requireUser(req));
+    cost = await readingPrice(token);
+    const balance = await walletBalance(token);
+    if (balance < cost) {
+      return res.status(402).json({ error: 'insufficient_coins', balance, cost });
+    }
+  } catch (err) {
+    if (err instanceof HttpError) return res.status(err.status).json(err.body);
+    console.error('auth/balance check failed', err);
+    return res.status(502).json({ error: 'wallet_unavailable' });
   }
 
   const family = resolveFamily(card.name);
@@ -141,7 +212,7 @@ ${groundingLines}`;
     const gemChoice = parsed.gemstoneChoice === 'calm' ? 'calm' : 'boost';
     const chosenGem = gem ? gem[gemChoice] : null;
 
-    res.json({
+    const result = {
       reading: parsed.reading,
       aroma: {
         name: aromaTea ? `${aromaTea.aroma.name} (${aromaTea.aroma.en})` : null,
@@ -156,7 +227,30 @@ ${groundingLines}`;
         reason: parsed.gemstoneReason,
       },
       closing: parsed.closing,
+    };
+
+    // Save to the user's history AND charge, in one database step (all or
+    // nothing). The reading is only handed over if this succeeds.
+    const saved = await sbFetch('/rest/v1/rpc/save_reading_with_spend', token, {
+      method: 'POST',
+      body: JSON.stringify({
+        p_app_key: APP_KEY,
+        p_card_id: card.id,
+        p_mood: (moodText || '').slice(0, 2000),
+        p_memo: JSON.stringify(result),
+      }),
     });
+    if (!saved.ok) {
+      console.error('save_reading_with_spend failed', saved.status, await saved.text());
+      return res.status(502).json({ error: 'save_failed' });
+    }
+    const outcome = await saved.json();
+    if (!outcome.ok) {
+      const status = outcome.reason === 'insufficient_coins' ? 402 : 400;
+      return res.status(status).json({ error: outcome.reason, balance: outcome.balance, cost: outcome.cost });
+    }
+
+    res.json({ ...result, balance: outcome.balance, cost: outcome.cost, readingId: outcome.reading_id });
   } catch (err) {
     console.error('AI reading error', err);
     res.status(502).json({ error: 'AI reading failed' });

@@ -68,6 +68,8 @@
   .upsell-box .ic { font-size: 22px; margin-bottom: 10px; letter-spacing: 4px; }
   .upsell-box p { font-size: 13.5px; line-height: 1.6; }
 
+  .gate-box { text-align: center; padding: 26px 20px; background: var(--secondary); border-radius: 16px; margin: 20px 0; }
+  .gate-box .gate-ic { font-size: 28px; margin-bottom: 8px; }
   .result-actions { display: flex; gap: 10px; margin-top: 26px; }
   .result-actions .btn { flex: 1; }
 </style>
@@ -77,7 +79,7 @@
 <div class="topbar">
   <a href="/index.html" class="brand">OZ <span>✦</span> 컬러타로</a>
   <div class="topbar-actions">
-    <span class="badge badge-free" id="roleBadge">불러오는 중</span>
+    <a href="/coins.html" class="badge badge-free" id="coinBadge">🪙</a>
     <a href="/settings.html" class="icon-btn">계정</a>
   </div>
 </div>
@@ -111,25 +113,6 @@
     </form>
   </div>
 
-  <div class="limit-box" id="limitBoxAnon" style="display:none;">
-    <div class="ic">🌙</div>
-    <p><strong>비회원은 하루 1회만 무료로 이용하실 수 있어요.</strong></p>
-    <p class="muted small mt-8">회원가입하시면 계속 컬러 카드를 만나보실 수 있어요.<br/>가입은 1분이면 충분해요.</p>
-    <div class="result-actions" style="max-width:320px;margin:20px auto 0;">
-      <a href="/auth.html" class="btn btn-primary">무료로 회원가입하기</a>
-    </div>
-  </div>
-
-  <div class="limit-box" id="limitBoxMember" style="display:none;">
-    <div class="ic">🌙</div>
-    <p><strong>오늘의 무료 리딩을 모두 사용하셨어요.</strong></p>
-    <p class="muted small mt-8">구독하시면 매일 무제한으로 이용하실 수 있고,<br/><strong>컬러타로 정규 수업을 들으시면 평생 무료로 무제한</strong> 이용하실 수 있어요.</p>
-    <div class="result-actions" style="max-width:320px;margin:20px auto 0;">
-      <a href="/edu.html#curriculum" class="btn btn-outline">정규 수업 안내</a>
-      <a href="/edu.html" class="btn btn-primary" id="subscribeLink">구독하기</a>
-    </div>
-  </div>
-
   <div id="loadingView" style="display:none;">
     <div class="center" style="padding:70px 0;">
       <div class="spinner"></div>
@@ -150,10 +133,9 @@
       <div id="userMood"></div>
     </div>
 
-    <div id="aiLoading" class="ai-loading">
-      <div class="spinner"></div>
-      <p>당신의 마음과 카드의 색을 함께 들여다보고 있어요...</p>
-    </div>
+    <div id="readingGate" class="gate-box" style="display:none;"></div>
+
+    <div id="aiLoading" class="ai-loading" style="display:none;"></div>
 
     <div id="aiContent" style="display:none;">
       <div class="section-label">오늘의 리딩</div>
@@ -183,11 +165,7 @@
         <div class="closing-box" id="closingText"></div>
       </div>
 
-      <div id="anonUpsell" class="upsell-box" style="display:none;">
-        <div class="ic">🌿🍵💎</div>
-        <p><strong>회원가입하시면 이 카드에 맞는 향·차·원석 처방까지 함께 보실 수 있어요.</strong></p>
-        <a href="/auth.html" class="btn btn-primary mt-16">무료로 회원가입하기</a>
-      </div>
+      <p class="small muted center mt-16" id="savedNote"></p>
     </div>
 
     <details class="accordion" id="studentBox" style="display:none;">
@@ -199,7 +177,7 @@
     </details>
 
     <div class="result-actions" id="resultActions">
-      <button class="btn btn-outline" id="saveBtn">기록에 저장</button>
+      <a class="btn btn-outline" href="/history.html">내 기록 보기</a>
       <button class="btn btn-primary" id="redrawBtn">새 카드 뽑기</button>
     </div>
   </div>
@@ -207,11 +185,7 @@
 </div>
 
 <script type="module">
-import { getSb, getSession, getMember, showToast, renderBottomNav, APP_KEY, isTWA } from '/js/app.js';
-
-if (isTWA()) {
-  document.getElementById('subscribeLink').style.display = 'none';
-}
+import { getSb, getSession, getMember, showToast, renderBottomNav, claimFreeCoins, getBalance, getPrice } from '/js/app.js';
 import { withKoName } from '/js/cardNames.js';
 import { pickRandomMoods } from '/js/moodPrompts.js';
 
@@ -220,16 +194,21 @@ renderBottomNav('/index.html');
 const moodView = document.getElementById('moodView');
 const loadingView = document.getElementById('loadingView');
 const resultView = document.getElementById('resultView');
-const limitBoxAnon = document.getElementById('limitBoxAnon');
-const limitBoxMember = document.getElementById('limitBoxMember');
 const moodForm = document.getElementById('moodForm');
 const chipGrid = document.getElementById('chipGrid');
-const roleBadge = document.getElementById('roleBadge');
+const coinBadge = document.getElementById('coinBadge');
+const readingGate = document.getElementById('readingGate');
+const aiLoading = document.getElementById('aiLoading');
+const aiContent = document.getElementById('aiContent');
 
 let selectedMood = null;
 let session = null;
 let member = null;
+let balance = 0;
+let price = 1;
 let cardsCache = null;
+let currentCard = null;
+let currentMoodText = '';
 
 function renderChips() {
   chipGrid.innerHTML = '';
@@ -256,62 +235,29 @@ function renderChips() {
 }
 renderChips();
 
-async function refreshBadge() {
-  session = await getSession();
+function updateCoinBadge() {
   if (!session) {
-    roleBadge.textContent = '비로그인 · 무료 1회/일';
-    roleBadge.className = 'badge badge-free';
+    coinBadge.textContent = '로그인';
+    coinBadge.setAttribute('href', '/auth.html');
+    coinBadge.className = 'badge badge-free';
     return;
   }
+  coinBadge.textContent = `🪙 ${balance}`;
+  coinBadge.setAttribute('href', '/coins.html');
+  coinBadge.className = 'badge badge-active';
+}
+
+async function refreshAccount() {
+  price = await getPrice('reading');
+  session = await getSession();
+  if (!session) { updateCoinBadge(); return; }
   member = await getMember(session);
-  if (!member) { roleBadge.textContent = '오류'; return; }
-  if (member.role === 'student') {
-    roleBadge.textContent = '🎓 정규 수강생 · 무제한';
-    roleBadge.className = 'badge badge-student';
-  } else if (member.subscription_status === 'active') {
-    roleBadge.textContent = '✦ 구독중 · 무제한';
-    roleBadge.className = 'badge badge-active';
-  } else {
-    roleBadge.textContent = '무료 회원 · 1회/일';
-    roleBadge.className = 'badge badge-free';
-  }
+  if (!member) { updateCoinBadge(); return; }
+  const claimed = await claimFreeCoins(session);
+  balance = claimed ?? await getBalance();
+  updateCoinBadge();
   if (member.display_name) {
     document.getElementById('heroTitle').textContent = `${member.display_name}님, 오늘 어떤 마음이신가요?`;
-  }
-}
-refreshBadge();
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-async function canDrawToday() {
-  if (session && member) {
-    if (member.role === 'student' || member.subscription_status === 'active') return true;
-    if (member.daily_reading_reset_date !== today()) return true;
-    return member.daily_reading_count < 1;
-  }
-  const raw = localStorage.getItem('ct_free_draw');
-  if (!raw) return true;
-  const { date, count } = JSON.parse(raw);
-  if (date !== today()) return true;
-  return count < 1;
-}
-
-async function recordDraw() {
-  if (session && member && member.role !== 'student' && member.subscription_status !== 'active') {
-    const sb = await getSb();
-    const resetToday = member.daily_reading_reset_date === today();
-    const newCount = resetToday ? member.daily_reading_count + 1 : 1;
-    await sb.from('enrollments').update({
-      daily_reading_count: newCount,
-      daily_reading_reset_date: today(),
-    }).eq('member_id', session.user.id).eq('app_key', APP_KEY);
-    member.daily_reading_count = newCount;
-    member.daily_reading_reset_date = today();
-  } else if (!session) {
-    const raw = localStorage.getItem('ct_free_draw');
-    const cur = raw ? JSON.parse(raw) : { date: today(), count: 0 };
-    const count = cur.date === today() ? cur.count + 1 : 1;
-    localStorage.setItem('ct_free_draw', JSON.stringify({ date: today(), count }));
   }
 }
 
@@ -330,56 +276,91 @@ function resolveImage(url) {
   return `https://cgxfsktnjsgxcyeqquhr.supabase.co/storage/v1/object/public/tarot-cards/color-tarot/${url}`;
 }
 
-let currentCard = null;
-let currentMoodText = '';
-let currentAiReading = null;
+function setLoading() {
+  aiLoading.innerHTML = '<div class="spinner"></div><p>당신의 마음과 카드의 색을 함께 들여다보고 있어요...</p>';
+  aiLoading.style.display = 'block';
+}
+
+// The card itself is free to draw and see. Only the reading underneath is
+// paid, so this panel turns "nothing to see" into a natural next step.
+function renderGate(note) {
+  aiLoading.style.display = 'none';
+  aiContent.style.display = 'none';
+  readingGate.style.display = 'block';
+
+  if (!session) {
+    readingGate.innerHTML = `
+      <div class="gate-ic">🔒</div>
+      <p><strong>이 카드의 풀이는 코인 ${price}개로 열려요</strong></p>
+      <p class="muted small mt-8">로그인하면 <b>가입 보너스 5코인</b>을 바로 드려요.<br/>매일 앱에 들어오면 1코인씩 더 드려요.</p>
+      <button class="btn btn-primary btn-block mt-16" id="gateLogin">로그인하고 5코인 받기</button>`;
+    document.getElementById('gateLogin').addEventListener('click', () => {
+      try {
+        sessionStorage.setItem('oz_pending_draw', JSON.stringify({ cardId: currentCard.id, mood: currentMoodText }));
+      } catch {}
+      window.location.href = '/auth.html';
+    });
+  } else if (balance >= price) {
+    readingGate.innerHTML = `
+      <div class="gate-ic">🔓</div>
+      <p><strong>코인 ${price}개로 오늘의 풀이를 열어볼까요?</strong></p>
+      <p class="muted small mt-8">지금 보유 <b>${balance}코인</b> · 풀이는 기록에 자동으로 저장돼요</p>
+      ${note ? `<p class="small mt-8" style="color:var(--danger)">${note}</p>` : ''}
+      <button class="btn btn-primary btn-block mt-16" id="gateUnlock">풀이 보기 (${price}코인)</button>`;
+    document.getElementById('gateUnlock').addEventListener('click', () => loadAiReading(currentCard, currentMoodText));
+  } else {
+    readingGate.innerHTML = `
+      <div class="gate-ic">🪙</div>
+      <p><strong>코인이 부족해요</strong></p>
+      <p class="muted small mt-8">보유 ${balance}코인 · 풀이에는 ${price}코인이 필요해요<br/>충전하시거나, 내일 출석 보너스 1코인을 받아가세요.</p>
+      <a href="/coins.html" class="btn btn-primary btn-block mt-16">코인 충전하기</a>`;
+  }
+}
 
 async function loadAiReading(card, moodText) {
-  const aiLoading = document.getElementById('aiLoading');
-  const aiContent = document.getElementById('aiContent');
-  aiLoading.style.display = 'block';
+  readingGate.style.display = 'none';
   aiContent.style.display = 'none';
-  document.getElementById('saveBtn').disabled = true;
+  setLoading();
+  document.getElementById('resultActions').style.opacity = '.5';
 
   try {
     const res = await fetch('/api/reading', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ moodText, card, displayName: member?.display_name || null }),
     });
-    if (res.status === 429) {
-      const { error } = await res.json().catch(() => ({}));
-      aiLoading.innerHTML = `<p class="muted small">${error || '요청이 너무 많아요. 잠시 후 다시 시도해주세요.'}</p>`;
+    const body = await res.json().catch(() => ({}));
+
+    if (res.status === 401) { session = null; updateCoinBadge(); renderGate(); return; }
+    if (res.status === 402) {
+      if (typeof body.balance === 'number') balance = body.balance;
+      updateCoinBadge();
+      renderGate();
       return;
     }
+    if (res.status === 429) { renderGate(body.error || '요청이 너무 많아요. 잠시 후 다시 시도해주세요.'); return; }
     if (!res.ok) throw new Error('reading failed');
-    const data = await res.json();
-    currentAiReading = data;
 
-    document.getElementById('readingText').textContent = data.reading || '';
-
-    if (session) {
-      document.getElementById('aromaName').textContent = data.aroma?.name || '';
-      document.getElementById('aromaReason').textContent = data.aroma?.reason || '';
-      document.getElementById('teaName').textContent = data.tea?.name || '';
-      document.getElementById('teaReason').textContent = data.tea?.reason || '';
-      document.getElementById('gemName').textContent = data.gemstone?.name || '';
-      document.getElementById('gemReason').textContent = data.gemstone?.reason || '';
-      document.getElementById('closingText').textContent = data.closing || '';
-      document.getElementById('memberOnlyContent').style.display = 'block';
-      document.getElementById('anonUpsell').style.display = 'none';
-    } else {
-      document.getElementById('memberOnlyContent').style.display = 'none';
-      document.getElementById('anonUpsell').style.display = 'block';
-    }
+    balance = body.balance;
+    updateCoinBadge();
+    document.getElementById('readingText').textContent = body.reading || '';
+    document.getElementById('aromaName').textContent = body.aroma?.name || '';
+    document.getElementById('aromaReason').textContent = body.aroma?.reason || '';
+    document.getElementById('teaName').textContent = body.tea?.name || '';
+    document.getElementById('teaReason').textContent = body.tea?.reason || '';
+    document.getElementById('gemName').textContent = body.gemstone?.name || '';
+    document.getElementById('gemReason').textContent = body.gemstone?.reason || '';
+    document.getElementById('closingText').textContent = body.closing || '';
+    document.getElementById('savedNote').textContent = `기록에 저장했어요 · 남은 코인 ${balance}개`;
 
     aiLoading.style.display = 'none';
     aiContent.style.display = 'block';
   } catch (err) {
     console.error(err);
-    aiLoading.innerHTML = '<p class="muted small">지금은 리딩 메시지를 불러오지 못했어요. 잠시 후 다시 시도해주세요.</p>';
+    aiLoading.innerHTML = '<p class="muted small">지금은 리딩 메시지를 불러오지 못했어요.<br/><b>코인은 차감되지 않았어요.</b> 잠시 후 다시 시도해주세요.</p><button class="btn btn-outline btn-sm mt-16" id="retryBtn">다시 시도</button>';
+    document.getElementById('retryBtn').addEventListener('click', () => loadAiReading(card, moodText));
   } finally {
-    document.getElementById('saveBtn').disabled = false;
+    document.getElementById('resultActions').style.opacity = '1';
   }
 }
 
@@ -398,30 +379,15 @@ function renderResult(card, moodText) {
     studentBox.style.display = 'none';
   }
 
-  document.getElementById('saveBtn').style.display = session ? 'inline-flex' : 'none';
-
   moodView.style.display = 'none';
   loadingView.style.display = 'none';
   resultView.style.display = 'block';
-
-  loadAiReading(card, moodText);
+  renderGate();
 }
 
 moodForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const moodText = document.getElementById('moodText').value.trim() || selectedMood || '';
-
-  if (!(await canDrawToday())) {
-    moodView.style.display = 'none';
-    if (session) {
-      showToast('오늘의 무료 리딩을 모두 사용하셨어요.');
-      limitBoxMember.style.display = 'block';
-    } else {
-      showToast('비회원은 하루 1회만 무료로 이용하실 수 있어요.');
-      limitBoxAnon.style.display = 'block';
-    }
-    return;
-  }
 
   moodView.style.display = 'none';
   loadingView.style.display = 'block';
@@ -431,7 +397,7 @@ moodForm.addEventListener('submit', async (e) => {
     const card = cards[Math.floor(Math.random() * cards.length)];
     currentCard = card;
     currentMoodText = moodText;
-    await recordDraw();
+    await accountReady;
     setTimeout(() => renderResult(card, moodText), 550);
   } catch (err) {
     console.error(err);
@@ -443,8 +409,8 @@ moodForm.addEventListener('submit', async (e) => {
 
 function resetToMoodView() {
   resultView.style.display = 'none';
-  limitBoxAnon.style.display = 'none';
-  limitBoxMember.style.display = 'none';
+  readingGate.style.display = 'none';
+  aiContent.style.display = 'none';
   moodView.style.display = 'block';
   document.getElementById('moodText').value = '';
   selectedMood = null;
@@ -454,27 +420,25 @@ function resetToMoodView() {
 document.getElementById('backBtn').addEventListener('click', (e) => { e.preventDefault(); resetToMoodView(); });
 document.getElementById('redrawBtn').addEventListener('click', resetToMoodView);
 
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  if (!session) {
-    showToast('기록 저장은 로그인 후 이용하실 수 있어요.');
-    setTimeout(() => window.location.href = '/auth.html', 900);
-    return;
+// Came back from logging in mid-draw: put the same card back on screen.
+async function restorePendingDraw() {
+  let raw = null;
+  try { raw = sessionStorage.getItem('oz_pending_draw'); sessionStorage.removeItem('oz_pending_draw'); } catch {}
+  if (!raw) return;
+  try {
+    const { cardId, mood } = JSON.parse(raw);
+    const cards = await fetchCards();
+    const card = cards.find((c) => c.id === cardId);
+    if (!card) return;
+    currentCard = card;
+    currentMoodText = mood || '';
+    renderResult(card, currentMoodText);
+  } catch (err) {
+    console.error(err);
   }
-  const sb = await getSb();
-  const { error } = await sb.from('readings').insert({
-    user_id: session.user.id,
-    card_id: currentCard.id,
-    mood_input: currentMoodText,
-    memo: currentAiReading ? JSON.stringify(currentAiReading) : null,
-    app_key: APP_KEY,
-  });
-  if (error) {
-    console.error(error);
-    showToast('저장에 실패했어요.');
-  } else {
-    showToast('기록에 저장했어요 ✓');
-  }
-});
+}
+
+const accountReady = refreshAccount().then(restorePendingDraw);
 </script>
 </body>
 </html>
