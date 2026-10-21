@@ -347,6 +347,11 @@ async function loadAiReading(card, moodText) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ moodText, card, displayName: member?.display_name || null }),
     });
+    if (res.status === 429) {
+      const { error } = await res.json().catch(() => ({}));
+      aiLoading.innerHTML = `<p class="muted small">${error || '요청이 너무 많아요. 잠시 후 다시 시도해주세요.'}</p>`;
+      return;
+    }
     if (!res.ok) throw new Error('reading failed');
     const data = await res.json();
     currentAiReading = data;

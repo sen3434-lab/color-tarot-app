@@ -4,7 +4,12 @@ const path = require('path');
 const { resolveFamily, ...gemstones } = require('./data/gemstones');
 const aromaTeaTable = require('./data/aroma_tea');
 
+const { createLimiter } = require('./rate-limit');
+
 const app = express();
+// nginx sits in front and sets X-Forwarded-For; without this every visitor
+// would look like 127.0.0.1 and share one rate-limit bucket.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
@@ -23,7 +28,7 @@ app.get('/api/config', (req, res) => {
 // prescriptions) from the user's mood text and the drawn card's DB content.
 // The DB fields (love/wealth/health/career/etc.) are grounding context only —
 // they are never shown to the user as a raw field dump, only woven into prose.
-app.post('/api/reading', async (req, res) => {
+app.post('/api/reading', createLimiter(), async (req, res) => {
   const { moodText, card, displayName } = req.body || {};
   if (!card || !card.name) {
     return res.status(400).json({ error: 'card is required' });
