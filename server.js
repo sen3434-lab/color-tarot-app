@@ -5,6 +5,7 @@ const { resolveFamily, ...gemstones } = require('./data/gemstones');
 const aromaTeaTable = require('./data/aroma_tea');
 
 const { createLimiter } = require('./rate-limit');
+const { registerBilling } = require('./billing');
 
 const app = express();
 // nginx sits in front and sets X-Forwarded-For; without this every visitor
@@ -77,6 +78,25 @@ async function walletBalance(token) {
   const rows = await r.json();
   return rows[0]?.balance ?? 0;
 }
+
+// Google Play coin packs (see billing.js). Valid product ids come from the
+// public coin_products table so a price/pack change needs no redeploy.
+let productCache = { ids: [], at: 0 };
+async function activeProductIds() {
+  if (Date.now() - productCache.at < 60 * 1000 && productCache.ids.length) return productCache.ids;
+  const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/coin_products?active=eq.true&select=product_id`, {
+    headers: { apikey: process.env.SUPABASE_ANON_KEY },
+  });
+  if (!r.ok) return productCache.ids;
+  productCache = { ids: (await r.json()).map((p) => p.product_id), at: Date.now() };
+  return productCache.ids;
+}
+registerBilling(app, {
+  packageName: 'com.ozma.colortarot',
+  requireUser, HttpError,
+  limiter: createLimiter(),
+  products: activeProductIds,
+});
 
 // Generates a warm, personalized reading (color psychology + aroma/tea/gemstone
 // prescriptions) from the user's mood text and the drawn card's DB content.
