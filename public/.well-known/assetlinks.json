@@ -1,10 +1,16 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "com.ozma.colortarot",
-    "sha256_cert_fingerprints": [
-      "1A:64:5E:99:A4:97:CC:F6:77:DD:49:5B:95:1C:B8:CD:0B:86:D3:5C:04:DE:27:39:68:8E:4E:A4:7B:F9:9B:B4"
-    ]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.ozma.colortarot",
+      "sha256_cert_fingerprints": [
+        "1A:64:5E:99:A4:97:CC:F6:77:DD:49:5B:95:1C:B8:CD:0B:86:D3:5C:04:DE:27:39:68:8E:4E:A4:7B:F9:9B:B4",
+        "8C:5C:37:A3:23:2E:25:EB:69:12:B8:20:40:13:D3:59:AE:B1:7F:C2:AC:44:06:74:0B:80:98:50:7C:FF:D8:2B",
+        "9F:40:EC:CA:BE:84:53:BC:29:0D:B8:BA:76:B1:44:84:53:95:6B:77:B1:72:EB:B4:E4:E5:91:0E:84:81:A8:FA"
+      ]
+    }
   }
-}]
+]
